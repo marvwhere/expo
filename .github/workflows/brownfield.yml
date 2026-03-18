@@ -12,7 +12,7 @@ on:
       - packages/expo-dev-menu/**
       - packages/expo-manifests/**
       - packages/expo-updates/**
-      - yarn.lock
+      - pnpm-lock.yaml
       - '!**.md'
       - '!**/__tests__/**'
       - '!**/__mocks__/**'
@@ -25,7 +25,7 @@ on:
       - packages/expo-dev-menu/**
       - packages/expo-manifests/**
       - packages/expo-updates/**
-      - yarn.lock
+      - pnpm-lock.yaml
       - '!**.md'
       - '!**/__tests__/**'
       - '!**/__mocks__/**'
@@ -51,7 +51,7 @@ jobs:
           filters: |
             all_tests: 
               - '.github/workflows/brownfield.yml'
-              - 'yarn.lock'
+              - 'pnpm-lock.yaml'
             compilation_test_android:
               - 'packages/expo/android/src/main/jave/expo/modules/**'
               - 'packages/expo/android/build.gradle'
@@ -90,19 +90,23 @@ jobs:
           java-version: '17'
       - name: ➕ Add `bin` to GITHUB_PATH
         run: echo "$(pwd)/bin" >> $GITHUB_PATH
+      - name: 🔨 Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: 🔨 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
       - name: ♻️ Restore caches
         uses: ./.github/actions/expo-caches
         id: expo-caches
         with:
           gradle: 'true'
-          yarn-workspace: 'true'
-          yarn-tools: 'true'
           react-native-gradle-downloads: 'true'
-      - name: 🧶 Install workspace node modules
-        if: steps.expo-caches.outputs.yarn-workspace-hit != 'true'
-        run: yarn install --frozen-lockfile
-      - name: 👷 Build Expo CLI
-        run: yarn workspace @expo/cli prepare
+      - name: 📦 Install node modules
+        run: pnpm install --frozen-lockfile
       - name: 🤖 Build and publish Android brownfield artifacts
         run: |
           npx expo prebuild --clean -p android
@@ -171,23 +175,26 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/.ccache
-          key: ccache-ios-brownfield-${{ hashFiles('yarn.lock', '**/Podfile.lock') }}-${{ github.sha }}
+          key: ccache-ios-brownfield-${{ hashFiles('pnpm-lock.yaml', '**/Podfile.lock') }}-${{ github.sha }}
           restore-keys: |
-            ccache-ios-brownfield-${{ hashFiles('yarn.lock', '**/Podfile.lock') }}-
+            ccache-ios-brownfield-${{ hashFiles('pnpm-lock.yaml', '**/Podfile.lock') }}-
             ccache-ios-brownfield-
       - name: 🔄 Reset ccache statistics
         run: ccache -z
+      - name: 🔨 Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: 🔨 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
       - name: ♻️ Restore caches
         uses: ./.github/actions/expo-caches
         id: expo-caches
-        with:
-          yarn-workspace: 'true'
-          yarn-tools: 'true'
-      - name: 🧶 Install node modules in root dir
-        if: steps.expo-caches.outputs.yarn-workspace-hit != 'true'
-        run: yarn install --frozen-lockfile
-      - name: 👷 Build Expo CLI
-        run: yarn workspace @expo/cli prepare
+      - name: 📦 Install node modules
+        run: pnpm install --frozen-lockfile
       - name: 🍏 Build iOS artifacts (Release)
         run: |
           npx expo prebuild --clean --platform ios
