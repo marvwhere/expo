@@ -1,0 +1,240 @@
+import { render, screen, within } from '@testing-library/react-native';
+import React from 'react';
+
+import { NativeMenuContext } from '../../../link/NativeMenuContext';
+import { ToolbarPlacementContext } from '../toolbar/context';
+import { processHeaderItemsForPlatform } from '../toolbar/processHeaderItemsForPlatform';
+
+jest.mock('@expo/ui/jetpack-compose', () => {
+  const { View }: typeof import('react-native') = jest.requireActual('react-native');
+
+  const DropdownMenu = jest.fn((props) => (
+    <View testID="DropdownMenu" {...props} />
+  )) as unknown as jest.MockedFunction<React.FC<Record<string, unknown>>> & {
+    Trigger: jest.MockedFunction<React.FC<Record<string, unknown>>>;
+    Items: jest.MockedFunction<React.FC<Record<string, unknown>>>;
+  };
+  DropdownMenu.Trigger = jest.fn((props) => <View testID="DropdownMenu.Trigger" {...props} />);
+  DropdownMenu.Items = jest.fn((props) => <View testID="DropdownMenu.Items" {...props} />);
+
+  const DropdownMenuItem = jest.fn((props) => (
+    <View testID="DropdownMenuItem" {...props} />
+  )) as unknown as jest.MockedFunction<React.FC<Record<string, unknown>>> & {
+    Text: jest.MockedFunction<React.FC<Record<string, unknown>>>;
+    LeadingIcon: jest.MockedFunction<React.FC<Record<string, unknown>>>;
+    TrailingIcon: jest.MockedFunction<React.FC<Record<string, unknown>>>;
+  };
+  DropdownMenuItem.Text = jest.fn((props) => <View testID="DropdownMenuItem.Text" {...props} />);
+  DropdownMenuItem.LeadingIcon = jest.fn((props) => (
+    <View testID="DropdownMenuItem.LeadingIcon" {...props} />
+  ));
+  DropdownMenuItem.TrailingIcon = jest.fn((props) => (
+    <View testID="DropdownMenuItem.TrailingIcon" {...props} />
+  ));
+
+  return {
+    Host: jest.fn((props) => <View testID="Host" {...props} />),
+    Box: jest.fn((props) => <View testID="Box" {...props} />),
+    DropdownMenu,
+    DropdownMenuItem,
+    Divider: jest.fn(() => <View testID="Divider" />),
+    Icon: jest.fn((props) => <View testID="Icon" {...props} />),
+    IconButton: jest.fn((props) => <View testID="IconButton" {...props} />),
+    Text: jest.fn((props) => <View testID="ComposeText" {...props} />),
+  };
+});
+
+
+jest.mock('../../../../assets/arrow_right.xml', () => 'mocked-arrow-right');
+jest.mock('../../../../assets/checkmark.xml', () => 'mocked-checkmark');
+
+jest.mock('../../../toolbar/AnimatedItemContainer', () => {
+  const { View }: typeof import('react-native') = jest.requireActual('react-native');
+  return {
+    AnimatedItemContainer: jest.fn((props) => <View testID="AnimatedItemContainer" {...props} />),
+  };
+});
+
+const { Box } = jest.requireMock(
+  '@expo/ui/jetpack-compose'
+) as typeof import('@expo/ui/jetpack-compose');
+const MockedBox = Box as jest.MockedFunction<typeof Box>;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+describe('processHeaderItemsForPlatform', () => {
+  it('returns null for bottom placement', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'bottom');
+    expect(result).toBeNull();
+  });
+
+  it('returns headerLeft for left placement', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'left');
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty('headerShown', true);
+    expect(result).toHaveProperty('headerLeft');
+    expect(result.headerLeft).toBeDefined();
+    expect(result).not.toHaveProperty('headerRight');
+  });
+
+  it('returns headerRight for right placement', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'right');
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty('headerShown', true);
+    expect(result).toHaveProperty('headerRight');
+    expect(result.headerRight).toBeDefined();
+    expect(result).not.toHaveProperty('headerLeft');
+  });
+
+  it('headerLeft renders Host > Box wrapper', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'left')!;
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    const host = screen.getByTestId('Host');
+    expect(host).toBeDefined();
+    expect(host.props.matchContents).toBe(true);
+    expect(within(host).getByTestId('Box')).toBeDefined();
+  });
+
+  it('headerRight renders Host > Box wrapper', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'right')!;
+    const HeaderRight = result.headerRight!;
+    render(<HeaderRight canGoBack={false} />);
+
+    const host = screen.getByTestId('Host');
+    expect(host).toBeDefined();
+    expect(within(host).getByTestId('Box')).toBeDefined();
+  });
+
+  it('Box has contentAlignment="center"', () => {
+    const result = processHeaderItemsForPlatform(<></>, 'left')!;
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    expect(MockedBox).toHaveBeenCalledWith(
+      expect.objectContaining({ contentAlignment: 'center' }),
+      undefined
+    );
+  });
+
+  it('provides ToolbarPlacementContext with actual placement "left"', () => {
+    let capturedPlacement: string | null = null;
+    const PlacementCapture = () => {
+      const placement = React.useContext(ToolbarPlacementContext);
+      capturedPlacement = placement;
+      return null;
+    };
+
+    const result = processHeaderItemsForPlatform(<PlacementCapture />, 'left')!;
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    expect(capturedPlacement).toBe('left');
+  });
+
+  it('provides ToolbarPlacementContext with actual placement "right"', () => {
+    let capturedPlacement: string | null = null;
+    const PlacementCapture = () => {
+      const placement = React.useContext(ToolbarPlacementContext);
+      capturedPlacement = placement;
+      return null;
+    };
+
+    const result = processHeaderItemsForPlatform(<PlacementCapture />, 'right')!;
+    const HeaderRight = result.headerRight!;
+    render(<HeaderRight canGoBack={false} />);
+
+    expect(capturedPlacement).toBe('right');
+  });
+
+  it('provides NativeMenuContext with value true', () => {
+    let capturedMenuContext: boolean | null = null;
+    const MenuContextCapture = () => {
+      const isNativeMenu = React.useContext(NativeMenuContext);
+      capturedMenuContext = isNativeMenu;
+      return null;
+    };
+
+    const result = processHeaderItemsForPlatform(<MenuContextCapture />, 'left')!;
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    expect(capturedMenuContext).toBe(true);
+  });
+
+  it('renders menu children with DropdownMenu and IconButton trigger', () => {
+    // Import the native components directly to test rendering inside the header
+    const {
+      NativeToolbarMenu,
+      NativeToolbarMenuAction,
+    } = require('../toolbar/StackToolbarMenu/native');
+
+    const result = processHeaderItemsForPlatform(
+      <NativeToolbarMenu source={{ uri: 'test-icon' }}>
+        <NativeToolbarMenuAction onPress={() => {}}>Action</NativeToolbarMenuAction>
+      </NativeToolbarMenu>,
+      'right'
+    )!;
+
+    const HeaderRight = result.headerRight!;
+    render(<HeaderRight canGoBack={false} />);
+
+    expect(screen.getByTestId('DropdownMenu')).toBeDefined();
+    expect(screen.getByTestId('IconButton')).toBeDefined();
+  });
+
+  it('renders button children with IconButton and Icon', () => {
+    const { NativeToolbarButton } = require('../toolbar/StackToolbarButton/native');
+
+    const result = processHeaderItemsForPlatform(
+      <NativeToolbarButton source={{ uri: 'test-icon' }} onPress={() => {}} />,
+      'left'
+    )!;
+
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    const AnimatedItemContainer = screen.getByTestId('AnimatedItemContainer');
+    expect(AnimatedItemContainer).toBeDefined();
+    expect(AnimatedItemContainer.props.visible).toBe(true);
+    const IconButton = within(AnimatedItemContainer).getByTestId('IconButton');
+    expect(IconButton).toBeDefined();
+    const Icon = within(IconButton).getByTestId('Icon');
+    expect(Icon).toBeDefined();
+    expect(Icon.props.source).toEqual({ uri: 'test-icon' });
+  });
+
+  it('renders hidden items with AnimatedItemContainer visible={false}', () => {
+    const { NativeToolbarButton } = require('../toolbar/StackToolbarButton/native');
+
+    const result = processHeaderItemsForPlatform(
+      <NativeToolbarButton source={{ uri: 'test-icon' }} onPress={() => {}} hidden />,
+      'left'
+    )!;
+
+    const HeaderLeft = result.headerLeft!;
+    render(<HeaderLeft canGoBack={false} />);
+
+    expect(screen.getByTestId('AnimatedItemContainer').props.visible).toBe(false);
+  });
+
+  it('renders multiple children correctly inside wrapper', () => {
+    const { NativeToolbarButton } = require('../toolbar/StackToolbarButton/native');
+
+    const result = processHeaderItemsForPlatform(
+      <>
+        <NativeToolbarButton source={{ uri: 'icon-1' }} onPress={() => {}} />
+        <NativeToolbarButton source={{ uri: 'icon-2' }} onPress={() => {}} />
+      </>,
+      'right'
+    )!;
+
+    const HeaderRight = result.headerRight!;
+    render(<HeaderRight canGoBack={false} />);
+
+    expect(screen.getAllByTestId('IconButton')).toHaveLength(2);
+  });
+});
